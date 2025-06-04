@@ -18,6 +18,8 @@ jobs:
         python-version: '3.10'
     - name: Install dependencies
       run: pip install -r requirements.txt
+    - name: Wait random time
+      run: sleep $((RANDOM % 1800))  # 0~30분 랜덤 대기
     - name: Run Bot
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
