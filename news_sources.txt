@@ -1,1 +1,1 @@
-https://media.daum.net/rss/today/primary/all/rss2.xml
+https://media.daum.net/rss/today/primary/politics/rss2.xml
