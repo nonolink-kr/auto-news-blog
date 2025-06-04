@@ -1,28 +1,50 @@
 import os
-from fetch_news import get_latest_news
-from generate_prompt import generate_prompt
-from format_post import format_claude_response
-from insert_images import insert_images_into_body
-from post_to_wordpress import publish_post
-import anthropic
+import requests
+from anthropic import Anthropic
+from requests.auth import HTTPBasicAuth
 
-def claude_api_call(prompt):
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    response = client.messages.create(
-        model="claude-3-haiku-20240307",
-        max_tokens=1500,
-        temperature=0.7,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.content[0].text
+# Claude API 설정
+client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-def main():
-    title, link, summary = get_latest_news()
-    prompt = generate_prompt(title, summary)
-    response_text = claude_api_call(prompt)
-    blog_title, blog_body = format_claude_response(response_text)
-    html_with_images = insert_images_into_body(blog_body)
-    publish_post(blog_title, html_with_images)
+# 뉴스 기사 제목과 본문 예시 (여기엔 실제 RSS 파싱 결과가 들어가야 함)
+news_title = "예시 기사 제목"
+news_body = "여기에 뉴스 기사 본문이 들어갑니다."
 
-if __name__ == "__main__":
-    main()
+# 프롬프트 템플릿 불러오기
+with open("claude_prompt.txt", "r", encoding="utf-8") as f:
+    prompt_template = f.read()
+
+final_prompt = prompt_template.format(title=news_title, body=news_body)
+
+# Claude API 호출
+response = client.messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=2048,
+    temperature=0.7,
+    messages=[
+        {"role": "user", "content": final_prompt}
+    ]
+)
+
+generated_content = response.content[0].text
+
+# 워드프레스 설정
+wp_user = os.getenv("WP_USERNAME")
+wp_password = os.getenv("WP_APP_PASSWORD")
+wp_url = os.getenv("WP_SITE_URL").rstrip("/") + "/wp-json/wp/v2/posts"
+
+# 이미지, 카테고리 ID 등은 정적 설정
+thumbnail_url = "https://source.unsplash.com/random/800x400?politics"
+category_id = 4
+
+data = {
+    "title": news_title,
+    "content": f"<img src='{thumbnail_url}' /><br>{generated_content}",
+    "status": "publish",
+    "categories": [category_id]
+}
+
+res = requests.post(wp_url, json=data, auth=HTTPBasicAuth(wp_user, wp_password))
+
+print("Response status:", res.status_code)
+print("Response body:", res.text)
