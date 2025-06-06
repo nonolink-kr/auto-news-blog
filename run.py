@@ -104,7 +104,11 @@ except json.JSONDecodeError:
 
 # ★ unicode escape 를 json.loads 로 안전하게 해제 -------------
 def unescape(s: str) -> str:
-    return json.loads(f'"{s}"')   # "..." 를 다시 JSON 으로 파싱
+    s = s.replace('\\', '\\\\')
+    s = s.replace('"', '\\"')
+    s = s.replace('\n', '\\n')
+    s = s.replace('\r', '')
+    return json.loads(f'"{s}"')
 
 content_json = {
     "title": unescape(t_m.group(1)),
