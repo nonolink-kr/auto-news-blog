@@ -21,7 +21,9 @@ def need(name: str) -> str:
 
 WP_USERNAME       = need("WP_USERNAME")
 WP_APP_PASSWORD   = need("WP_APP_PASSWORD")
-WP_SITE_URL       = need("WP_SITE_URL").rstrip("/")
+WP_SITE_URL = need("WP_SITE_URL").rstrip("/")
+if not WP_SITE_URL.startswith(("http://", "https://")):
+    WP_SITE_URL = "https://" + WP_SITE_URL
 ANTHROPIC_API_KEY = need("ANTHROPIC_API_KEY")
 OPENAI_API_KEY    = need("OPENAI_API_KEY")
 
