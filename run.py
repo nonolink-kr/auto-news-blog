@@ -53,6 +53,10 @@ except ImportError:
 # 3. Claude: 클릭베이트 제목 + 반말 본문(JSON)
 with open("claude_prompt.txt", encoding="utf-8") as fp:
     raw_prompt = fp.read()
+import random
+length_hint = random.choice(["1,500자 내외", "1,700자 내외", "2,000자 내외", "2,200자 내외", "2,500자 내외"])
+prompt = prompt.replace("{length_hint}", length_hint)
+
 prompt = (raw_prompt
           .replace("{title}", news_title)
           .replace("{body}",  news_body))
