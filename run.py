@@ -1,86 +1,88 @@
+
 import os
 import requests
-from anthropic import Anthropic
 from requests.auth import HTTPBasicAuth
-import openai
-import re
+import feedparser
+import random
+import time
 
-# Claude API 설정
-claude_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+# 환경 변수 가져오기
+wp_user = os.getenv("WP_USERNAME")
+wp_password = os.getenv("WP_APP_PASSWORD")
+wp_site = os.getenv("WP_SITE_URL")
 
-# OpenAI API 설정 (DALL·E 이미지 생성용)
-openai.api_key = os.getenv("OPENAI_API_KEY")
+if not wp_site:
+    raise ValueError("환경변수 'WP_SITE_URL'이 설정되지 않았습니다.")
 
-# 뉴스 기사 제목과 본문 예시
-news_title = "예시 기사 제목"
-news_body = "여기에 뉴스 기사 본문이 들어갑니다."
+wp_url = f"https://{wp_site}/wp-json/wp/v2/posts"
+print(f"▶ wp_url: {wp_url}")
 
-# Claude 프롬프트 불러오기
+# 정치 뉴스 RSS 피드
+rss_url = "https://rss.donga.com/politics.xml"
+
+# RSS 피드 파싱
+feed = feedparser.parse(rss_url)
+if not feed.entries:
+    raise ValueError("RSS 피드에서 기사를 불러오지 못했습니다.")
+
+# 최신 기사 선택
+entry = feed.entries[0]
+news_title = entry.title
+news_body = entry.summary
+
+# Claude 프롬프트 로딩
 with open("claude_prompt.txt", "r", encoding="utf-8") as f:
     prompt_template = f.read()
 
-final_prompt = prompt_template.format(title=news_title, body=news_body)
+# Claude 프롬프트 완성
+try:
+    final_prompt = prompt_template.format(title=news_title, body=news_body)
+except KeyError as e:
+    raise ValueError(f"Claude 프롬프트 템플릿에 필요한 키가 없습니다: {e}")
 
-# Claude 응답 생성
-response = claude_client.messages.create(
+# Claude API 요청
+import anthropic
+client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
+
+response = client.messages.create(
     model="claude-3-opus-20240229",
-    max_tokens=2048,
+    max_tokens=1024,
     temperature=0.7,
     messages=[
         {"role": "user", "content": final_prompt}
     ]
 )
 
-generated_text = response.content[0].text
+generated_content = response.content[0].text
+print("Claude 응답 생성 완료")
 
-# 괄호 속 이미지 프롬프트 추출
-matches = re.findall(r"\((.*?)\)", generated_text)
+# ChatGPT로 이미지 생성 프롬프트 요청
+image_prompts = [
+    "국회 본회의장 전경, 오후 햇살이 비추는 풍경",
+    "국회의사당 앞에서 1인 시위 중인 시민들",
+    "텅 빈 국회 본회의장 좌석들",
+    "여야 의원들이 고성을 지르며 대치하는 모습",
+    "여야 대표가 회동하는 모습",
+    "일몰녘 국회의사당 전경"
+]
 
-# 문단 나누기
-paragraphs = re.split(r"\n\n+", generated_text)
+# 이미지 삽입 (임시로 프롬프트 리스트 활용)
+image_html = ""
+for prompt in image_prompts:
+    image_html += f"<p><strong>이미지 생성 프롬프트:</strong> {prompt}</p>"
 
-# 이미지 생성 및 삽입
-content_with_images = ""
-image_index = 0
+# 최종 포스트 내용
+content = f"{image_html}\n\n{generated_content}"
 
-for para in paragraphs:
-    if not para.strip():
-        continue
-    content_with_images += f"<p>{para.strip()}</p>\n"
-
-    # 해당 문단 뒤에 이미지 삽입 (있을 경우)
-    if image_index < len(matches):
-        prompt = matches[image_index]
-        print("이미지 생성 프롬프트:", prompt)
-
-        # OpenAI DALL·E 이미지 생성
-        try:
-            image_res = openai.Image.create(
-                prompt=prompt,
-                n=1,
-                size="1024x1024"
-            )
-            image_url = image_res["data"][0]["url"]
-            content_with_images += f"<img src='{image_url}' alt='{prompt}' /><br>\n"
-        except Exception as e:
-            content_with_images += f"<p>(이미지 생성 실패: {prompt})</p>\n"
-
-        image_index += 1
-
-# 워드프레스 포스팅 설정
-wp_user = os.getenv("WP_USERNAME")
-wp_password = os.getenv("WP_APP_PASSWORD")
-wp_url = os.getenv("WP_SITE_URL").rstrip("/") + "/wp-json/wp/v2/posts"
-category_id = 4
-
+# 포스팅할 데이터
 data = {
     "title": news_title,
-    "content": content_with_images,
+    "content": content,
     "status": "publish",
-    "categories": [category_id]
+    "categories": [4]  # 지정된 카테고리 ID
 }
 
+# 워드프레스에 POST 요청
 res = requests.post(wp_url, json=data, auth=HTTPBasicAuth(wp_user, wp_password))
-
-print("Response status:", res.status_code)
-print("Response body:", res.text)
+print(f"Response status: {res.status_code}")
+print(f"Response body: {res.text}")
