@@ -89,16 +89,22 @@ except json.JSONDecodeError:
     try:
         content_json = json.loads(candidate)
     except json.JSONDecodeError:
-        # ③ 그래도 실패 → 정규식 수동 추출
-        t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
-        b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"',  candidate, re.S)
-        if not (t_m and b_m):
-            print("Claude raw ▶", raw_text[:400])
-            sys.exit("❌ Claude JSON 파싱 실패(3단계)")
-        content_json = {
-            "title": t_m.group(1).encode().decode("unicode_escape"),
-            "body":  b_m.group(1).encode().decode("unicode_escape")
-        }
+    # ---------- 단계 ③ 수동 추출 ----------
+t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
+b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"',  candidate, re.S)
+if not (t_m and b_m):
+    print("Claude raw ▶", raw_text[:400])
+    sys.exit("❌ Claude JSON 파싱 실패(3단계)")
+
+# ★ unicode escape 를 json.loads 로 안전하게 해제 -------------
+def unescape(s: str) -> str:
+    return json.loads(f'"{s}"')   # "..." 를 다시 JSON 으로 파싱
+
+content_json = {
+    "title": unescape(t_m.group(1)),
+    "body":  unescape(b_m.group(1))
+}
+# --------------------------------------------------------------
 
 post_title = content_json.get("title", "제목 없음")[:90]
 post_body  = content_json.get("body", "")
