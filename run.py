@@ -68,20 +68,30 @@ except anthropic.NotFoundError:
 blog_text = resp.content[0].text
 print("✔ Claude done")
 
-# 3. GPT-4 이미지 프롬프트
-from openai import OpenAI
+# ── 3. GPT-4 이미지 프롬프트 (RateLimit 대비) ───────────────────
+from openai import OpenAI, RateLimitError
 openai = OpenAI(api_key=OPENAI_API_KEY)
-img_resp = openai.chat.completions.create(
-    model="gpt-4o-mini",
-    temperature=0.7,
-    messages=[
-        {"role":"system","content":"아래 글을 시각화할 사진 프롬프트 3줄 작성"},
-        {"role":"user","content":blog_text},
-    ],
-)
-prompts = [l.strip("- ").strip()
-           for l in img_resp.choices[0].message.content.splitlines() if l.strip()]
-img_html = "".join(f"<p><em>이미지 프롬프트: {p}</em></p>" for p in prompts)
+
+try:
+    img_resp = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.7,
+        messages=[
+            {"role": "system",
+             "content": "아래 글을 시각화할 사진 프롬프트 3줄 작성"},
+            {"role": "user", "content": blog_text},
+        ],
+    )
+    prompts = [ln.strip("- ").strip()
+               for ln in img_resp.choices[0].message.content.splitlines()
+               if ln.strip()]
+    img_html = "".join(
+        f"<p><em>이미지 프롬프트: {p}</em></p>" for p in prompts
+    )
+
+except RateLimitError as e:
+    print("⚠️ OpenAI quota 초과 – 이미지 프롬프트 생략")
+    img_html = "<p><em>(이미지 프롬프트 생략: OpenAI quota 부족)</em></p>"
 
 # 4. 본문 구성
 full_body = (
