@@ -53,16 +53,18 @@ except ImportError:
 # 3. Claude: 클릭베이트 제목 + 반말 본문(JSON)
 with open("claude_prompt.txt", encoding="utf-8") as fp:
     prompt_template = fp.read()
+
 length_hint = random.choice([
     "1500자 내외", "1600자 내외", "1700자 내외", "1800자 내외",
     "1900자 내외", "2000자 내외", "2100자 내외", "2200자 내외",
     "2300자 내외", "2400자 내외", "2500자 내외"
 ])
+
 prompt = prompt_template.replace("{length_hint}", length_hint)
-    raw_prompt = fp.read()
-prompt = (raw_prompt
+prompt = (prompt
           .replace("{title}", news_title)
           .replace("{body}",  news_body))
+
 
 primary_model = os.getenv("CLAUDE_MODEL", "claude-3-sonnet-20240229").strip()
 backup_model  = "claude-3-haiku-20240307"
