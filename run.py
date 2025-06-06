@@ -85,9 +85,7 @@ raw_text = resp.content[0].text
 # ① 직접 json.loads 시도
 try:
     content_json = json.loads(raw_text)
-
 except json.JSONDecodeError:
-        # ---------- 단계 ③ 수동 추출 ----------
     # ② 첫 { … } 블록 추출 후 재시도
     blk = re.search(r'\{.*?\}', raw_text, re.S)
     candidate = blk.group(0) if blk else ""
@@ -95,20 +93,17 @@ except json.JSONDecodeError:
         content_json = json.loads(candidate)
     except json.JSONDecodeError:
         # ---------- 단계 ③ 수동 추출 ----------
-    # ---------- 단계 ③ 수동 추출 ----------
         t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
-        b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"',  candidate, re.S)
+        b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
         if not (t_m and b_m):
-                print("Claude raw ▶", raw_text[:400])
-                sys.exit("❌ Claude JSON 파싱 실패(3단계)")
-
-# ★ unicode escape 를 json.loads 로 안전하게 해제 -------------
+            print("Claude raw ▶", raw_text[:400])
+            sys.exit("❌ Claude JSON 파싱 실패(3단계)")
+        content_json = {
+            "title": unescape(t_m.group(1)),
+            "body": unescape(b_m.group(1))
+        }
 def unescape(s: str) -> str:
-    s = s.replace('\\', '\\\\')
-    s = s.replace('"', '\\"')
-    s = s.replace('\n', '\\n')
-    s = s.replace('\r', '')
-    return json.loads(f'"{s}"')
+    return json.loads(f'"{s}"')   # "..." 를 다시 JSON 으로 파싱
 
 content_json = {
     "title": unescape(t_m.group(1)),
