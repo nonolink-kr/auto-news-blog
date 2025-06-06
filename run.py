@@ -87,6 +87,17 @@ def try_extract_json_block(text):
     match = re.search(r'\{.*\}', text, re.S)
     return match.group(0) if match else text
 
+def unescape(s: str) -> str:
+    return json.loads(f'"{s}"')   # "..." 를 다시 JSON 으로 파싱
+
+def unescape(s: str) -> str:
+    s = s.replace('\\', '\\\\')
+    s = s.replace('"', '\\"')
+    s = s.replace('\n', '\\n')
+    s = s.replace('\r', '')
+    return json.loads(f'"{s}"')
+# --------------------------------------------------------------
+
 def try_parse_claude_response(text):
     try:
         return json.loads(text)
@@ -106,9 +117,6 @@ def try_parse_claude_response(text):
             }
 
 content_json = try_parse_claude_response(raw_text)
-def unescape(s: str) -> str:
-    return json.loads(f'"{s}"')   # "..." 를 다시 JSON 으로 파싱
-
 content_json = {
     "title": unescape(t_m.group(1)),
     "body":  unescape(b_m.group(1))
@@ -117,14 +125,6 @@ content_json = {
 
 
 # ★ unicode escape 를 json.loads 로 안전하게 해제 -------------
-def unescape(s: str) -> str:
-    s = s.replace('\\', '\\\\')
-    s = s.replace('"', '\\"')
-    s = s.replace('\n', '\\n')
-    s = s.replace('\r', '')
-    return json.loads(f'"{s}"')
-# --------------------------------------------------------------
-
 post_title = content_json.get("title", "제목 없음")[:90]
 post_body  = content_json.get("body", "")
 # ────────────────────────────────────────────────────────────────
