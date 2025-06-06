@@ -3,3 +3,5 @@ anthropic
 openai
 feedparser
 python-dotenv
+beautifulsoup4>=4.12
+lxml>=5.2
