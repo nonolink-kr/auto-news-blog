@@ -1,30 +1,24 @@
-name: Auto Blog Post
+name: Auto Post to WordPress
 
 on:
   schedule:
-    - cron: '0 6 * * *'
-    - cron: '0 14 * * *'
-    - cron: '0 22 * * *'
+    - cron: "0 4,10,16 * * *"
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-    - name: Install dependencies
-      run: pip install -r requirements.txt
-    - name: Wait random time
-      run: sleep $((RANDOM % 1800))  # 0~30분 랜덤 대기
-    - name: Run Bot
-      env:
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
-        WP_USERNAME: ${{ secrets.WP_USERNAME }}
-        WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
-      run: python run.py
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run main script
+        run: python run.py
