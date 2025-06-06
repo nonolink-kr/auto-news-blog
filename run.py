@@ -48,7 +48,10 @@ except ImportError:
 
 # ── 3. Claude: 클릭유도 제목 + 반말 본문(JSON) ────────────────
 with open("claude_prompt.txt", encoding="utf-8") as fp:
-    prompt = fp.read().format(title=news_title, body=news_body)
+    raw_prompt = fp.read()
+    prompt = (raw_prompt
+              .replace("{title}", news_title)
+              .replace("{body}",  news_body))
 
 primary_model = os.getenv("CLAUDE_MODEL", "claude-3-sonnet-20240229").strip()
 backup_model  = "claude-3-haiku-20240307"
