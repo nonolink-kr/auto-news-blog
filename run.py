@@ -98,13 +98,6 @@ def unescape(s: str) -> str:
     return json.loads(f'"{s}"')
 # --------------------------------------------------------------
 
-def try_parse_claude_response(text):
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        candidate = try_extract_json_block(text)
-        try:
-            return json.loads(candidate)
         except json.JSONDecodeError:
             t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
             b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
@@ -115,7 +108,6 @@ def try_parse_claude_response(text):
                 "title": unescape(t_m.group(1)),
                 "body": unescape(b_m.group(1))
             }
-
 content_json = try_parse_claude_response(raw_text)
 content_json = {
     "title": unescape(t_m.group(1)),
