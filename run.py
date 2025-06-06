@@ -82,26 +82,30 @@ except anthropic.NotFoundError:
 # ─── Claude 응답(JSON) 파싱 ────────────────────────────────
 raw_text = resp.content[0].text
 
-# ① 직접 json.loads 시도
-try:
-    content_json = json.loads(raw_text)
-except json.JSONDecodeError:
-    # ② 첫 { … } 블록 추출 후 재시도
-    blk = re.search(r'\{.*?\}', raw_text, re.S)
-    candidate = blk.group(0) if blk else ""
+# ─── Claude 응답(JSON) 파싱: 안정화 버전 ────────────────────────────────
+def try_extract_json_block(text):
+    match = re.search(r'\{.*\}', text, re.S)
+    return match.group(0) if match else text
+
+def try_parse_claude_response(text):
     try:
-        content_json = json.loads(candidate)
+        return json.loads(text)
     except json.JSONDecodeError:
-        # ---------- 단계 ③ 수동 추출 ----------
-        t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
-        b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
-        if not (t_m and b_m):
-            print("Claude raw ▶", raw_text[:400])
-            sys.exit("❌ Claude JSON 파싱 실패(3단계)")
-        content_json = {
-            "title": unescape(t_m.group(1)),
-            "body": unescape(b_m.group(1))
-        }
+        candidate = try_extract_json_block(text)
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
+            b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
+            if not (t_m and b_m):
+                print("Claude raw ▶", text[:400])
+                sys.exit("❌ Claude JSON 파싱 실패(3단계)")
+            return {
+                "title": unescape(t_m.group(1)),
+                "body": unescape(b_m.group(1))
+            }
+
+content_json = try_parse_claude_response(raw_text)
 def unescape(s: str) -> str:
     return json.loads(f'"{s}"')   # "..." 를 다시 JSON 으로 파싱
 
