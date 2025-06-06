@@ -75,25 +75,33 @@ except anthropic.NotFoundError:
     print(f"⚠️ {primary_model} unavailable → fallback {backup_model}")
     resp = claude_call(backup_model)
 
-# ── JSON 파싱 보강 ──────────────────────────────────────────────
+# ─── Claude 응답(JSON) 파싱 ────────────────────────────────
 raw_text = resp.content[0].text
+
+# ① 직접 json.loads 시도
 try:
     content_json = json.loads(raw_text)
+
 except json.JSONDecodeError:
-    # ```json … ``` 같은 래퍼 제거 및 첫 JSON 블록만 추출
-    m = re.search(r'\{.*?\}', raw_text, re.S)
-    if not m:
-        print("Claude raw ▶", raw_text[:400])
-        sys.exit("❌ Claude: JSON 블록을 찾지 못했습니다.")
+    # ② 첫 { … } 블록 추출 후 재시도
+    blk = re.search(r'\{.*?\}', raw_text, re.S)
+    candidate = blk.group(0) if blk else ""
     try:
-        content_json = json.loads(m.group(0))
-    except json.JSONDecodeError as e:
-        print("Claude raw ▶", raw_text[:400])
-        sys.exit(f"❌ Claude JSON 파싱 실패: {e}")
+        content_json = json.loads(candidate)
+    except json.JSONDecodeError:
+        # ③ 그래도 실패 → 정규식 수동 추출
+        t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
+        b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"',  candidate, re.S)
+        if not (t_m and b_m):
+            print("Claude raw ▶", raw_text[:400])
+            sys.exit("❌ Claude JSON 파싱 실패(3단계)")
+        content_json = {
+            "title": t_m.group(1).encode().decode("unicode_escape"),
+            "body":  b_m.group(1).encode().decode("unicode_escape")
+        }
 
 post_title = content_json.get("title", "제목 없음")[:90]
 post_body  = content_json.get("body", "")
-
 # ────────────────────────────────────────────────────────────────
 # 4. 이미지 프롬프트 (OpenAI 키 없으면 생략)
 img_html = ""
