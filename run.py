@@ -1,101 +1,92 @@
-
-import os
-import random
-import time
-import requests
+"""
+Auto-blogging script (uses ANTHROPIC_API_KEY, robust category)
+"""
+import os, sys, random, time, requests, feedparser
 from requests.auth import HTTPBasicAuth
-from bs4 import BeautifulSoup
-import feedparser
-from anthropic import Anthropic
-from openai import OpenAI
 
-# ───────────────────────────────────────────
-# 1) 스케줄 실행일 때만 0‑30분 랜덤 대기
-# ───────────────────────────────────────────
+# ── 0. 스케줄 실행이면 0-30분 랜덤 대기 ──────────────────────────
 if os.getenv("GITHUB_EVENT_NAME") == "schedule":
-    wait = random.randint(0, 1800)
-    print(f"[CRON] {wait}초 대기 후 실행합니다.")
-    time.sleep(wait)
+    delay = random.randint(0, 1800)
+    print(f"[CRON] sleep {delay}s")
+    time.sleep(delay)
 else:
-    print("[수동 실행] 즉시 실행합니다.")
+    print("[Manual] run immediately")
 
-# ───────────────────────────────────────────
-# 2) 필수 환경변수
-# ───────────────────────────────────────────
-wp_user       = os.environ["WP_USERNAME"]
-wp_password   = os.environ["WP_APP_PASSWORD"]
-wp_site       = os.environ["WP_SITE_URL"].rstrip("/")
-category_id   = int(os.getenv("WP_CATEGORY_ID", "4"))
-anthropic_key = os.environ["CLAUDE_API_KEY"]
-openai_key    = os.environ["OPENAI_API_KEY"]
+# ── 1. 필수 ENV 로딩 + 검증 ────────────────────────────────────
+def need(name: str) -> str:
+    v = os.getenv(name, "").strip()
+    if not v:
+        sys.exit(f"❌ ENV {name} 가 비어 있습니다. GitHub Secrets 확인!")
+    return v
 
-wp_api_url = f"{wp_site}/wp-json/wp/v2/posts"
+WP_USERNAME       = need("WP_USERNAME")
+WP_APP_PASSWORD   = need("WP_APP_PASSWORD")
+WP_SITE_URL       = need("WP_SITE_URL").rstrip("/")
+ANTHROPIC_API_KEY = need("ANTHROPIC_API_KEY")
+OPENAI_API_KEY    = need("OPENAI_API_KEY")
 
-# ───────────────────────────────────────────
-# 3) 최신 정치 기사 가져오기 (RSS)
-# ───────────────────────────────────────────
+# WP_CATEGORY_ID: 비어 있거나 숫자가 아니면 4
+cat_env = os.getenv("WP_CATEGORY_ID", "").strip()
+CATEGORY_ID = int(cat_env) if cat_env.isdigit() else 4
+
+WP_POST_API = f"{WP_SITE_URL}/wp-json/wp/v2/posts"
+
+# ── 2. 최신 정치 기사 추출 ─────────────────────────────────────
 rss_url = "https://rss.donga.com/politics.xml"
-feed = feedparser.parse(rss_url)
-entry = feed.entries[0]
-news_title = entry.title
-news_link  = entry.link
+entry   = feedparser.parse(rss_url).entries[0]
+news_title, news_link = entry.title, entry.link
 
-article_html = requests.get(news_link, headers={"User-Agent": "Mozilla/5.0"}).text
-soup = BeautifulSoup(article_html, "html.parser")
-paragraphs = [p.get_text(strip=True) for p in soup.select("p") if p.get_text(strip=True)]
-news_body = "\n".join(paragraphs)[:4000]  # Claude 프롬프트 길이 제한
+html = requests.get(news_link, headers={"User-Agent":"Mozilla/5.0"}).text
+try:
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "lxml")
+    news_body = "\n".join(p.get_text(" ", strip=True) for p in soup.find_all("p")[:40])
+except ImportError:
+    news_body = entry.summary
 
-# ───────────────────────────────────────────
-# 4) Claude 프롬프트 구성 & 호출
-# ───────────────────────────────────────────
-with open("claude_prompt.txt", encoding="utf-8") as f:
-    tmpl = f.read()
+# ── 3. Claude 요약/의견 생성 ───────────────────────────────────
+from anthropic import Anthropic
+with open("claude_prompt.txt", encoding="utf-8") as fp:
+    tmpl = fp.read()
 
-claude_prompt = tmpl.format(title=news_title, body=news_body)
-
-anthropic = Anthropic(api_key=anthropic_key)
-claude_resp = anthropic.messages.create(
-    model="claude-3-sonnet-20240229",
-    max_tokens=1000,
+anthropic = Anthropic(api_key=ANTHROPIC_API_KEY)
+msg = anthropic.messages.create(
+    model="claude-3-sonnet-20240620",
+    max_tokens=900,
     temperature=0.7,
-    messages=[{"role": "user", "content": claude_prompt}]
+    messages=[{"role":"user","content":tmpl.format(title=news_title, body=news_body)}],
 )
-blog_text = claude_resp.content[0].text
+blog_text = msg.content[0].text
+print("✔ Claude done")
 
-# ───────────────────────────────────────────
-# 5) GPT‑4로 이미지 프롬프트 3개 생성
-# ───────────────────────────────────────────
-openai = OpenAI(api_key=openai_key)
-img_prompt_resp = openai.chat.completions.create(
+# ── 4. GPT-4로 이미지 프롬프트 3개 생성 ─────────────────────────
+from openai import OpenAI
+openai = OpenAI(api_key=OPENAI_API_KEY)
+img_resp = openai.chat.completions.create(
     model="gpt-4o-mini",
     temperature=0.7,
     messages=[
-        {"role": "system", "content": "다음 글의 와닿는 장면을 사진처럼 묘사한 프롬프트 3개를 한 줄씩 만들어줘."},
-        {"role": "user",   "content": blog_text}
-    ]
+        {"role":"system","content":"아래 글을 사진처럼 시각화할 프롬프트 3줄 작성"},
+        {"role":"user","content":blog_text},
+    ],
 )
-img_prompts = [l.strip("- ").strip() for l in img_prompt_resp.choices[0].message.content.splitlines() if l.strip()]
+prompts = [ln.strip("- ").strip() for ln in img_resp.choices[0].message.content.splitlines() if ln.strip()]
+img_html = "".join(f"<p><em>이미지 프롬프트: {p}</em></p>" for p in prompts)
 
-image_html = "".join(f"<p><em>이미지 프롬프트: {p}</em></p>" for p in img_prompts)
+# ── 5. 최종 본문 HTML 구성 ─────────────────────────────────────
+full_body = f"""<p><a href="{news_link}" target="_blank">원문 기사 보기</a></p>
+{img_html}
+<div>{blog_text}</div>
+"""
 
-# ───────────────────────────────────────────
-# 6) 최종 본문 HTML
-# ───────────────────────────────────────────
-full_body = f"""<p><a href='{news_link}' target='_blank'>원문 기사 보기</a></p>
-{image_html}
-<div>{blog_text}</div>"""
-
-# ───────────────────────────────────────────
-# 7) 워드프레스 포스팅
-# ───────────────────────────────────────────
+# ── 6. 워드프레스 발행 ─────────────────────────────────────────
 payload = {
     "title": news_title,
     "content": full_body,
     "status": "publish",
-    "categories": [category_id]
+    "categories": [CATEGORY_ID],
 }
-
-resp = requests.post(wp_api_url, json=payload,
-                     auth=HTTPBasicAuth(wp_user, wp_password))
+resp = requests.post(WP_POST_API, json=payload,
+                     auth=HTTPBasicAuth(WP_USERNAME, WP_APP_PASSWORD))
 print("WP response:", resp.status_code)
-print(resp.text)
+print(resp.text[:400])
