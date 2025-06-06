@@ -111,6 +111,16 @@ content_json = {
 }
 # --------------------------------------------------------------
 
+
+# ★ unicode escape 를 json.loads 로 안전하게 해제 -------------
+def unescape(s: str) -> str:
+    s = s.replace('\\', '\\\\')
+    s = s.replace('"', '\\"')
+    s = s.replace('\n', '\\n')
+    s = s.replace('\r', '')
+    return json.loads(f'"{s}"')
+# --------------------------------------------------------------
+
 post_title = content_json.get("title", "제목 없음")[:90]
 post_body  = content_json.get("body", "")
 # ────────────────────────────────────────────────────────────────
