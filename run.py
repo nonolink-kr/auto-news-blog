@@ -53,18 +53,16 @@ except ImportError:
 # 3. Claude: 클릭베이트 제목 + 반말 본문(JSON)
 with open("claude_prompt.txt", encoding="utf-8") as fp:
     prompt_template = fp.read()
-
 length_hint = random.choice([
     "1500자 내외", "1600자 내외", "1700자 내외", "1800자 내외",
     "1900자 내외", "2000자 내외", "2100자 내외", "2200자 내외",
     "2300자 내외", "2400자 내외", "2500자 내외"
 ])
-
 prompt = prompt_template.replace("{length_hint}", length_hint)
-prompt = (prompt
+    raw_prompt = fp.read()
+prompt = (raw_prompt
           .replace("{title}", news_title)
           .replace("{body}",  news_body))
-
 
 primary_model = os.getenv("CLAUDE_MODEL", "claude-3-sonnet-20240229").strip()
 backup_model  = "claude-3-haiku-20240307"
@@ -95,22 +93,16 @@ except json.JSONDecodeError:
     # ② 첫 { … } 블록 추출 후 재시도
     blk = re.search(r'\{.*?\}', raw_text, re.S)
     candidate = blk.group(0) if blk else ""
-   try:
-    # JSON 파싱 시도
-    parsed = json.loads(generated)
-except Exception as e:
-    # 에러 발생 시 fallback 파싱 로직 수행
-    candidate = generated.replace("\n", "")
-    t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
-    b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
+    try:
+        content_json = json.loads(candidate)
+    except json.JSONDecodeError:
+    # ---------- 단계 ③ 수동 추출 ----------
+t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
+b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"',  candidate, re.S)
+if not (t_m and b_m):
+    print("Claude raw ▶", raw_text[:400])
+    sys.exit("❌ Claude JSON 파싱 실패(3단계)")
 
-    if t_m and b_m:
-        parsed = {
-            "title": t_m.group(1),
-            "body": b_m.group(1),
-        }
-    else:
-        raise ValueError("❌ Claude JSON 파싱 실패(3단계)")
 # ★ unicode escape 를 json.loads 로 안전하게 해제 -------------
 def unescape(s: str) -> str:
     return json.loads(f'"{s}"')   # "..." 를 다시 JSON 으로 파싱
