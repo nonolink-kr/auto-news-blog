@@ -95,16 +95,22 @@ except json.JSONDecodeError:
     # ② 첫 { … } 블록 추출 후 재시도
     blk = re.search(r'\{.*?\}', raw_text, re.S)
     candidate = blk.group(0) if blk else ""
-    try:
-        content_json = json.loads(candidate)
-    except json.JSONDecodeError:
-    # ---------- 단계 ③ 수동 추출 ----------
-t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
-b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"',  candidate, re.S)
-if not (t_m and b_m):
-    print("Claude raw ▶", raw_text[:400])
-    sys.exit("❌ Claude JSON 파싱 실패(3단계)")
+   try:
+    # JSON 파싱 시도
+    parsed = json.loads(generated)
+except Exception as e:
+    # 에러 발생 시 fallback 파싱 로직 수행
+    candidate = generated.replace("\n", "")
+    t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
+    b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
 
+    if t_m and b_m:
+        parsed = {
+            "title": t_m.group(1),
+            "body": b_m.group(1),
+        }
+    else:
+        raise ValueError("❌ Claude JSON 파싱 실패(3단계)")
 # ★ unicode escape 를 json.loads 로 안전하게 해제 -------------
 def unescape(s: str) -> str:
     return json.loads(f'"{s}"')   # "..." 를 다시 JSON 으로 파싱
