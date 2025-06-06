@@ -1,6 +1,6 @@
 """
 auto-news-blog · click-bait title + 반말 + 비문
-  - Claude JSON 파싱 보강 버전
+  - Robust 3-stage JSON parsing (fixed indentation)
 """
 import os, sys, random, time, re, json, requests, feedparser
 from requests.auth import HTTPBasicAuth
@@ -27,7 +27,7 @@ def need(k: str) -> str:
 WP_USERNAME       = need("WP_USERNAME")
 WP_APP_PASSWORD   = need("WP_APP_PASSWORD")
 WP_SITE_URL       = need("WP_SITE_URL").rstrip("/")
-if not WP_SITE_URL.startswith(("http://", "https://")):   # 스킴 자동 보정
+if not WP_SITE_URL.startswith(("http://", "https://")):
     WP_SITE_URL = "https://" + WP_SITE_URL
 ANTHROPIC_API_KEY = need("ANTHROPIC_API_KEY")
 OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY", "").strip()
@@ -78,8 +78,8 @@ except anthropic.NotFoundError:
 # ─── Claude 응답(JSON) 파싱 ────────────────────────────────
 raw_text = resp.content[0].text
 
-# ① 직접 json.loads 시도
 try:
+    # ① 직접 json.loads
     content_json = json.loads(raw_text)
 
 except json.JSONDecodeError:
@@ -89,32 +89,31 @@ except json.JSONDecodeError:
     try:
         content_json = json.loads(candidate)
     except json.JSONDecodeError:
-    # ---------- 단계 ③ 수동 추출 ----------
-t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
-b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"',  candidate, re.S)
-if not (t_m and b_m):
-    print("Claude raw ▶", raw_text[:400])
-    sys.exit("❌ Claude JSON 파싱 실패(3단계)")
+        # ③ 그래도 실패 → 정규식 수동 추출
+        t_m = re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', candidate, re.S)
+        b_m = re.search(r'"body"\s*:\s*"((?:[^"\\]|\\.)*)"',  candidate, re.S)
+        if not (t_m and b_m):
+            print("Claude raw ▶", raw_text[:400])
+            sys.exit("❌ Claude JSON 파싱 실패(3단계)")
 
-# ★ unicode escape 를 json.loads 로 안전하게 해제 -------------
-def unescape(s: str) -> str:
-    return json.loads(f'"{s}"')   # "..." 를 다시 JSON 으로 파싱
+        # unicode-escape 해제 (이중 디코드 방지)
+        def unescape(s: str) -> str:
+            return json.loads(f'"{s}"')
 
-content_json = {
-    "title": unescape(t_m.group(1)),
-    "body":  unescape(b_m.group(1))
-}
-# --------------------------------------------------------------
+        content_json = {
+            "title": unescape(t_m.group(1)),
+            "body":  unescape(b_m.group(1))
+        }
 
 post_title = content_json.get("title", "제목 없음")[:90]
 post_body  = content_json.get("body", "")
+
 # ────────────────────────────────────────────────────────────────
 # 4. 이미지 프롬프트 (OpenAI 키 없으면 생략)
-img_html = ""
 if OPENAI_API_KEY:
     openai = OpenAI(api_key=OPENAI_API_KEY)
     try:
-        _ = openai.chat.completions.create(
+        openai.chat.completions.create(
             model="gpt-4o-mini",
             temperature=0.7,
             messages=[
@@ -123,7 +122,6 @@ if OPENAI_API_KEY:
                 {"role": "user", "content": post_body},
             ],
         )
-        # 프롬프트 자체는 본문에 넣지 않음 (SEO·가독성 유지)
     except RateLimitError:
         print("⚠️ OpenAI quota 초과 – 이미지 프롬프트 스킵")
 
