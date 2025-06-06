@@ -2,31 +2,27 @@ name: Auto Post to WordPress
 
 on:
   schedule:
+    # 매일 04:00, 10:00, 16:00(UTC) → KST 오후 1/7/1시
     - cron: '0 4,10,16 * * *'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      WP_USERNAME:       ${{ secrets.WP_USERNAME }}
-      WP_APP_PASSWORD:   ${{ secrets.WP_APP_PASSWORD }}
-      WP_SITE_URL:       ${{ secrets.WP_SITE_URL }}
-      WP_CATEGORY_ID:    ${{ secrets.WP_CATEGORY_ID }}
-      CLAUDE_API_KEY:    ${{ secrets.CLAUDE_API_KEY }}
-      OPENAI_API_KEY:    ${{ secrets.OPENAI_API_KEY }}
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - run: |
-          pip install -r requirements.txt
-          pip install beautifulsoup4
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
+      # ───────── 랜덤 대기: 스케줄(run.event_name == 'schedule')일 때만 ─────────
       - name: Wait random time
         if: github.event_name == 'schedule'
         run: sleep $((RANDOM % 1800))
