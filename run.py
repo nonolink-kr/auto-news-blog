@@ -78,7 +78,7 @@ def try_parse_claude_response(text):
                 "body": unescape(b_m.group(1))
             }
 
-primary_model = os.getenv("CLAUDE_MODEL", "claude-3-sonnet-20240229").strip()
+primary_model = os.getenv("CLAUDE_MODEL", "claude-3-sonnet-20240601").strip()
 backup_model  = "claude-3-haiku-20240307"
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 def claude_call(model):
