@@ -60,7 +60,18 @@ def try_extract_json_block(text):
     match = re.search(r'\{.*\}', text, re.S)
     return match.group(0) if match else text
 
-def try_parse_claude_response(text):
+
+def try_parse_claude_response(text, model_used):
+    if model_used == "claude-3-haiku-20240307":
+        lines = text.strip().splitlines()
+        if len(lines) >= 2:
+            return {
+                "title": lines[0].strip(),
+                "body": "\n".join(line.strip() for line in lines[1:])
+            }
+        else:
+            sys.exit("❌ Haiku 응답 포맷 해석 실패")
+
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -78,24 +89,26 @@ def try_parse_claude_response(text):
                 "body": unescape(b_m.group(1))
             }
 
+
 primary_model = os.getenv("CLAUDE_MODEL", "claude-3-sonnet-20240601").strip()
 backup_model  = "claude-3-haiku-20240307"
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 def claude_call(model):
-    return client.messages.create(
+    response = client.messages.create(
         model=model,
         max_tokens=1000,
         temperature=0.7,
         messages=[{"role": "user", "content": prompt}],
     )
+    return response, model
 try:
-    resp = claude_call(primary_model)
+    resp, model_used = claude_call(primary_model)
 except anthropic.NotFoundError:
     print(f"⚠️ {primary_model} unavailable → fallback {backup_model}")
-    resp = claude_call(backup_model)
+    resp, model_used = claude_call(backup_model)
 
 raw_text = resp.content[0].text
-content_json = try_parse_claude_response(raw_text)
+content_json = try_parse_claude_response(raw_text, model_used)
 
 post_title = content_json.get("title", "제목 없음")[:90]
 post_body  = content_json.get("body", "")
