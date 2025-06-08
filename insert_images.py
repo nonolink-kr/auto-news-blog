@@ -1,34 +1,32 @@
 
 from openai import OpenAI
 
-def call_gpt_for_prompt(paragraph):
-    system = (
-        "너는 콘텐츠 디자이너야. 아래 문단을 바탕으로 "
-        "중립적이고 상징적인 자료화면 스타일 이미지를 만들어낼 수 있는 "
-        "'짧은 설명문'을 생성해줘. "
-        "절대 정치인 실명, 얼굴, 사진, 실제 인물, 실제 조직 이름을 포함하지 마. "
-        "직접적인 묘사 대신 시각적 상징이나 풍경, 은유적 표현으로 바꿔줘."
-    )
-    user = f"문단: {paragraph}"
+client = OpenAI()
 
+def extract_key_paragraphs(body):
+    system = (
+        "다음은 정치 칼럼 본문이다. 전체 문단 중에서 핵심 주장을 가장 잘 드러내는 문단 2개를 골라줘. "
+        "각 문단에 대해 그 내용을 상징적으로 시각화할 수 있는 간단한 프롬프트도 함께 생성해줘. "
+        "정치인 실명, 얼굴, 사진, 조직명은 포함하지 말고, 상징적·중립적 표현으로만 구성할 것. "
+        "JSON 형식으로 반환해: [{'paragraph': '...', 'prompt': '...'}, ...]"
+    )
     try:
-        client = OpenAI()
         res = client.chat.completions.create(
             model="gpt-4",
             temperature=0.7,
             messages=[
                 {"role": "system", "content": system},
-                {"role": "user", "content": user}
+                {"role": "user", "content": body}
             ]
         )
-        return res.choices[0].message.content.strip()
+        import json
+        return json.loads(res.choices[0].message.content.strip())
     except Exception as e:
-        print(f"[GPT 프롬프트 생성 실패] {e}")
-        return None
+        print(f"[핵심 문단 추출 실패] {e}")
+        return []
 
 def dalle_image_url(prompt):
     try:
-        client = OpenAI()
         res = client.images.generate(
             model="dall-e-3",
             prompt=prompt,
@@ -41,21 +39,18 @@ def dalle_image_url(prompt):
         return None
 
 def insert_images_into_body(body):
-    paragraphs = body.split('\n\n')
+    key_data = extract_key_paragraphs(body)
     html = ""
-    for para in paragraphs:
+    for item in key_data:
+        para = item.get("paragraph", "").strip()
+        prompt = item.get("prompt", "").strip()
         html += f"<p>{para}</p>\n"
-        try:
-            prompt = call_gpt_for_prompt(para)
-            if not prompt:
-                html += f"<!-- 프롬프트 생성 실패 -->\n"
-                continue
+        if prompt:
             img_url = dalle_image_url(prompt)
             if img_url:
                 html += f"<img src='{img_url}' style='max-width:100%; height:auto;'/><br/>\n"
             else:
-                html += f"<!-- 이미지 URL 없음 -->\n"
-        except Exception as e:
-            print(f"[문단 처리 중 오류] {e}")
-            html += f"<!-- 이미지 생성 실패: {e} -->\n"
+                html += f"<!-- 이미지 생성 실패 (URL 없음) -->\n"
+        else:
+            html += f"<!-- 이미지 프롬프트 없음 -->\n"
     return html
