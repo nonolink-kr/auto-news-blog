@@ -2,7 +2,7 @@ import os, sys, random, time, re, json, requests, feedparser
 from requests.auth import HTTPBasicAuth
 import anthropic
 from openai import OpenAI, RateLimitError
-from insert_images_final import insert_images_into_body  # 이미지 삽입용 함수 추가
+from insert_images import insert_images_into_body  # 이미지 삽입용 함수 추가
 
 # 0. 랜덤 대기 (스케줄 실행 시)
 if os.getenv("GITHUB_EVENT_NAME") == "schedule":
