@@ -134,7 +134,7 @@ if OPENAI_API_KEY:
 body_with_images = insert_images_into_body(post_body)
 html_content = (
     f"<p><a href='{news_link}' target='_blank'>원문 기사 보기</a></p>\n"
-    f"<div>{body_with_images}</div>"
+    body_with_images
 )
 
 html_content = (
