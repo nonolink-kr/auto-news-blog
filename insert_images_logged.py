@@ -1,11 +1,10 @@
-from openai import OpenAI
+import openai
 import os
 
 def call_gpt_for_prompt(paragraph):
     system = "당신은 콘텐츠 디자이너입니다. 주어진 문단에 어울리는 '자료화면 스타일의 이미지' 프롬프트를 한 문장으로 생성하세요."
     user = f"문단: {paragraph}"
-    client = OpenAI()
-    res = client.chat.completions.create(
+    res = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[
             {"role": "system", "content": system},
