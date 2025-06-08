@@ -2,7 +2,13 @@
 from openai import OpenAI
 
 def call_gpt_for_prompt(paragraph):
-    system = "당신은 콘텐츠 디자이너입니다. 주어진 문단에 어울리는 '자료화면 스타일의 이미지' 프롬프트를 한 문장으로 생성하세요."
+    system = (
+        "너는 콘텐츠 디자이너야. 아래 문단을 바탕으로 "
+        "중립적이고 상징적인 자료화면 스타일 이미지를 만들어낼 수 있는 "
+        "'짧은 설명문'을 생성해줘. "
+        "절대 정치인 실명, 얼굴, 사진, 실제 인물, 실제 조직 이름을 포함하지 마. "
+        "직접적인 묘사 대신 시각적 상징이나 풍경, 은유적 표현으로 바꿔줘."
+    )
     user = f"문단: {paragraph}"
 
     try:
@@ -15,7 +21,7 @@ def call_gpt_for_prompt(paragraph):
                 {"role": "user", "content": user}
             ]
         )
-        return res.choices[0].message.content
+        return res.choices[0].message.content.strip()
     except Exception as e:
         print(f"[GPT 프롬프트 생성 실패] {e}")
         return None
