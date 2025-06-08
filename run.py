@@ -2,6 +2,7 @@ import os, sys, random, time, re, json, requests, feedparser
 from requests.auth import HTTPBasicAuth
 import anthropic
 from openai import OpenAI, RateLimitError
+from insert_images import insert_images_into_body  # 이미지 삽입용 함수 추가
 
 # 0. 랜덤 대기 (스케줄 실행 시)
 if os.getenv("GITHUB_EVENT_NAME") == "schedule":
@@ -129,7 +130,13 @@ if OPENAI_API_KEY:
     except RateLimitError:
         print("⚠️ OpenAI quota 초과 – 이미지 프롬프트 스킵")
 
-# 5. 최종 본문
+# 5. 최종 본문 (이미지 삽입 포함)
+body_with_images = insert_images_into_body(post_body)
+html_content = (
+    f"<p><a href='{news_link}' target='_blank'>원문 기사 보기</a></p>\n"
+    f"<div>{body_with_images}</div>"
+)
+
 html_content = (
     f"<p><a href='{news_link}' target='_blank'>원문 기사 보기</a></p>\n"
     f"<div>{post_body}</div>"
