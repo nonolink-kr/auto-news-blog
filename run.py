@@ -133,13 +133,13 @@ if OPENAI_API_KEY:
 # 5. 최종 본문 (이미지 삽입 포함)
 body_with_images = insert_images_into_body(post_body)
 html_content = (
-    "<p><a href='" + news_link + "' target='_blank'>원문 기사 보기</a></p>
-" + body_with_images
+    f"""<p><a href='{news_link}' target='_blank'>원문 기사 보기</a></p>
+{body_with_images}"""
 )
 
 html_content = (
-    "<p><a href='" + news_link + "' target='_blank'>원문 기사 보기</a></p>
-" + body_with_images
+    f"""<p><a href='{news_link}' target='_blank'>원문 기사 보기</a></p>
+{body_with_images}"""
 )
 
 # 6. 워드프레스 업로드
